@@ -19,25 +19,24 @@ def img2text(image_path: str) -> str:
     return caption
 
 
-def text2story(caption: str) -> str:
-    story_generator = pipeline(
+@st.cache_resource
+def load_story_generator():
+    return pipeline(
         "text-generation",
-        model="TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+        model="h2oai/h2o-danube3-500m-chat"
     )
-    # Chat 格式，用 system + user 来精准控制风格
+
+def text2story(caption: str) -> str:
+    story_generator = load_story_generator()
+
+    # 使用 Chat 模板格式
     messages = [
-        {
-            "role": "system",
-            "content": "You are a creative storyteller for children aged 3-10. Write simple, fun, and imaginative stories."
-        },
-        {
-            "role": "user",
-            "content": f"Write a short children's story (50-100 words) based on this scene: {caption}"
-        }
+        {"role": "system", "content": "You are a fun storyteller for children aged 3-10. Write simple, cheerful stories with a happy ending."},
+        {"role": "user", "content": f"Write a short children's story in 60-80 words based on this scene: {caption}"}
     ]
-    # 使用 apply_chat_template 格式化输入
+
     from transformers import AutoTokenizer
-    tokenizer = AutoTokenizer.from_pretrained("TinyLlama/TinyLlama-1.1B-Chat-v1.0")
+    tokenizer = AutoTokenizer.from_pretrained("h2oai/h2o-danube3-500m-chat")
     prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
 
     result = story_generator(
@@ -48,9 +47,14 @@ def text2story(caption: str) -> str:
         repetition_penalty=1.3
     )
     raw = result[0]["generated_text"]
+
     # 截取 assistant 回复部分
-    story = raw.split("<|assistant|>")[-1].strip()
-    # 在最后一个句号截断
+    if "<|assistant|>" in raw:
+        story = raw.split("<|assistant|>")[-1].strip()
+    else:
+        story = raw.strip()
+
+    # 在最后句号处截断
     last_period = story.rfind(".")
     if last_period != -1:
         story = story[:last_period + 1]
