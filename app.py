@@ -19,23 +19,42 @@ def img2text(image_path: str) -> str:
     return caption
 
 
+from transformers import AutoTokenizer, AutoModelForCausalLM
+import torch
+
 @st.cache_resource
-def load_story_generator():
-    return pipeline("text-generation", model="gpt2")
+def load_story_model():
+    checkpoint = "HuggingFaceTB/SmolLM2-360M-Instruct"
+    tokenizer = AutoTokenizer.from_pretrained(checkpoint)
+    model = AutoModelForCausalLM.from_pretrained(checkpoint)
+    return tokenizer, model
 
 def text2story(caption: str) -> str:
-    prompt = f"Once upon a time, {caption}. It was a wonderful day. "
-    result = load_story_generator()(
-        prompt,
-        max_new_tokens=150,
+    tokenizer, model = load_story_model()
+
+    messages = [
+        {"role": "system", "content": "You are a fun and creative storyteller for children aged 3 to 10. Always write simple, cheerful stories with a happy ending. Use easy words."},
+        {"role": "user", "content": f"Write a short children's story in about 80 words based on this scene: {caption}"}
+    ]
+
+    input_text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    inputs = tokenizer.encode(input_text, return_tensors="pt")
+
+    outputs = model.generate(
+        inputs,
+        max_new_tokens=200,
+        temperature=0.7,
+        top_p=0.9,
         do_sample=True,
-        temperature=0.9,
-        repetition_penalty=1.2,
-        num_return_sequences=1
+        repetition_penalty=1.2
     )
-    raw_story = result[0]["generated_text"]
-    last_period = raw_story.rfind(".")
-    return raw_story[:last_period + 1] if last_period != -1 else raw_story
+
+    # 只取模型新生成的部分
+    generated = tokenizer.decode(outputs[0][inputs.shape[1]:], skip_special_tokens=True).strip()
+
+    # 在最后句号截断
+    last_period = generated.rfind(".")
+    return generated[:last_period + 1] if last_period != -1 else generated
 
 def text2audio(story_text: str) -> str:
     """Convert story text to an MP3 audio file. Returns file path."""
