@@ -19,47 +19,27 @@ def img2text(image_path: str) -> str:
     return caption
 
 
-@st.cache_resource
-def load_story_generator():
-    return pipeline(
-        "text-generation",
-        model="h2oai/h2o-danube3-500m-chat"
-    )
-
 def text2story(caption: str) -> str:
-    story_generator = load_story_generator()
-
-    # 使用 Chat 模板格式
-    messages = [
-        {"role": "system", "content": "You are a fun storyteller for children aged 3-10. Write simple, cheerful stories with a happy ending."},
-        {"role": "user", "content": f"Write a short children's story in 60-80 words based on this scene: {caption}"}
-    ]
-
-    from transformers import AutoTokenizer
-    tokenizer = AutoTokenizer.from_pretrained("h2oai/h2o-danube3-500m-chat")
-    prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-
+    story_generator = pipeline("text-generation", model="roneneldan/TinyStories-33M")
+    prompt = f"Once upon a time, {caption}. "
     result = story_generator(
         prompt,
         max_new_tokens=200,
         do_sample=True,
-        temperature=0.7,
-        repetition_penalty=1.3
+        temperature=0.8,
+        repetition_penalty=1.3,
+        num_return_sequences=1
     )
-    raw = result[0]["generated_text"]
+    raw_story = result[0]["generated_text"]
 
-    # 截取 assistant 回复部分
-    if "<|assistant|>" in raw:
-        story = raw.split("<|assistant|>")[-1].strip()
-    else:
-        story = raw.strip()
-
-    # 在最后句号处截断
-    last_period = story.rfind(".")
+    # 在最后一个句号处截断，确保故事完整结束
+    last_period = raw_story.rfind(".")
     if last_period != -1:
-        story = story[:last_period + 1]
-    return story
+        story = raw_story[:last_period + 1]
+    else:
+        story = raw_story
 
+    return story
 
 def text2audio(story_text: str) -> str:
     """Convert story text to an MP3 audio file. Returns file path."""
