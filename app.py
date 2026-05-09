@@ -13,28 +13,32 @@ def img2text(image_path: str) -> str:
     """Convert an uploaded image to a descriptive caption."""
     captioner = pipeline(
         "image-to-text",
-        model="Salesforce/blip-image-captioning-base"
+        model="Salesforce/blip-image-captioning-large"
     )
     caption = captioner(image_path)[0]["generated_text"]
     return caption
 
 
 def text2story(caption: str) -> str:
-    """Expand a caption into a short children's story (50-100 words)."""
-    story_generator = pipeline(
-        "text-generation",
-        model="roneneldan/TinyStories-33M"
-    )
+    story_generator = pipeline("text-generation", model="roneneldan/TinyStories-33M")
     prompt = f"Once upon a time, {caption}. "
     result = story_generator(
         prompt,
-        max_new_tokens=120,
+        max_new_tokens=200,
         do_sample=True,
         temperature=0.8,
         repetition_penalty=1.3,
         num_return_sequences=1
     )
-    story = result[0]["generated_text"]
+    raw_story = result[0]["generated_text"]
+
+    # 在最后一个句号处截断，确保故事完整结束
+    last_period = raw_story.rfind(".")
+    if last_period != -1:
+        story = raw_story[:last_period + 1]
+    else:
+        story = raw_story
+        
     return story
 
 
