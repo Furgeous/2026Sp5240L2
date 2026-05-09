@@ -32,7 +32,6 @@ def text2story(caption: str) -> str:
     )
     raw_story = result[0]["generated_text"]
 
-    # 在最后一个句号处截断，确保故事完整结束
     last_period = raw_story.rfind(".")
     if last_period != -1:
         story = raw_story[:last_period + 1]
