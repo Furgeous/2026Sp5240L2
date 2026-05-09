@@ -2,41 +2,48 @@
 # app.py
 
 import streamlit as st
-from transformers import pipeline
+from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
 from gtts import gTTS
 import os
 import tempfile
 
 # ── Functions ──────────────────────────────────────────────
 
-def img2text(image_path: str) -> str:
-    """Convert an uploaded image to a descriptive caption."""
-    captioner = pipeline(
-        "image-to-text",
-        model="Salesforce/blip-image-captioning-large"
-    )
-    caption = captioner(image_path)[0]["generated_text"]
-    return caption
-
-
-from transformers import AutoTokenizer, AutoModelForCausalLM
-import torch
+@st.cache_resource
+def load_captioner():
+    """Load and cache the image captioning model."""
+    return pipeline("image-to-text", model="Salesforce/blip-image-captioning-large")
 
 @st.cache_resource
 def load_story_model():
+    """Load and cache the story generation model and tokenizer."""
     checkpoint = "HuggingFaceTB/SmolLM2-360M-Instruct"
     tokenizer = AutoTokenizer.from_pretrained(checkpoint)
     model = AutoModelForCausalLM.from_pretrained(checkpoint)
     return tokenizer, model
 
+def img2text(image_path: str) -> str:
+    """Convert an uploaded image to a descriptive caption."""
+    captioner = load_captioner()
+    caption = captioner(image_path)[0]["generated_text"]
+    return caption
+
 def text2story(caption: str) -> str:
+    """Generate a short children's story based on the image caption."""
     tokenizer, model = load_story_model()
 
     messages = [
-        {"role": "system", "content": "You are a fun and creative storyteller for children aged 3 to 10. Always write simple, cheerful stories with a happy ending. Use easy words."},
-        {"role": "user", "content": f"Write a short children's story in about 100 words based on this scene: {caption}"}
+        {
+            "role": "system",
+            "content": "You are a fun and creative storyteller for children aged 3 to 10. Always write simple, cheerful stories with a happy ending. Use easy words."
+        },
+        {
+            "role": "user",
+            "content": f"Write a short children's story in about 100 words based on this scene: {caption}"
+        }
     ]
 
+    # Format messages using chat template
     input_text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
     inputs = tokenizer.encode(input_text, return_tensors="pt")
 
@@ -49,15 +56,15 @@ def text2story(caption: str) -> str:
         repetition_penalty=1.2
     )
 
-    # 只取模型新生成的部分
+    # Decode only the newly generated tokens, excluding the input prompt
     generated = tokenizer.decode(outputs[0][inputs.shape[1]:], skip_special_tokens=True).strip()
 
-    # 在最后句号截断
+    # Trim at the last period to ensure the story ends with a complete sentence
     last_period = generated.rfind(".")
     return generated[:last_period + 1] if last_period != -1 else generated
 
 def text2audio(story_text: str) -> str:
-    """Convert story text to an MP3 audio file. Returns file path."""
+    """Convert story text to an MP3 audio file and return the file path."""
     tts = gTTS(text=story_text, lang="en", slow=False)
     tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
     tts.save(tmp_file.name)
@@ -73,7 +80,7 @@ st.markdown("*Upload a picture and listen to a magical story!* ✨")
 uploaded_file = st.file_uploader("📸 Choose an image...", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
-    # Save locally
+    # Save uploaded file locally for model processing
     image_path = uploaded_file.name
     with open(image_path, "wb") as f:
         f.write(uploaded_file.getvalue())
@@ -88,7 +95,7 @@ if uploaded_file is not None:
     # Stage 2: Caption → Story
     with st.spinner("✍️ Writing your story..."):
         story = text2story(caption)
-    st.info(f"📖 **Your Story:**\n\n{story}")
+    st.markdown(f"📖 **Your Story:**\n\n{story}")
 
     # Stage 3: Story → Audio
     with st.spinner("🎙️ Recording the story..."):
@@ -97,5 +104,6 @@ if uploaded_file is not None:
     st.audio(audio_path, format="audio/mp3")
     st.balloons()
 
-    # Cleanup temp file
+    # Clean up temporary files
     os.remove(image_path)
+    os.remove(audio_path)
