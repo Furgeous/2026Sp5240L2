@@ -21,7 +21,10 @@ def img2text(image_path: str) -> str:
 
 def text2story(caption: str) -> str:
     story_generator = pipeline("text-generation", model="roneneldan/TinyStories-33M")
-    prompt = f"Once upon a time, {caption}. "
+    prompt = (
+    f"Once upon a time, {caption}. "
+    f"The story is for young children and has a happy ending. "
+)
     result = story_generator(
         prompt,
         max_new_tokens=200,
