@@ -34,7 +34,7 @@ def text2story(caption: str) -> str:
 
     messages = [
         {"role": "system", "content": "You are a fun and creative storyteller for children aged 3 to 10. Always write simple, cheerful stories with a happy ending. Use easy words."},
-        {"role": "user", "content": f"Write a short children's story in about 80 words based on this scene: {caption}"}
+        {"role": "user", "content": f"Write a short children's story in about 100 words based on this scene: {caption}"}
     ]
 
     input_text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
