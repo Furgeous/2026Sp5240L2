@@ -19,30 +19,23 @@ def img2text(image_path: str) -> str:
     return caption
 
 
+@st.cache_resource
+def load_story_generator():
+    return pipeline("text-generation", model="gpt2")
+
 def text2story(caption: str) -> str:
-    story_generator = pipeline("text-generation", model="roneneldan/TinyStories-33M")
-    prompt = (
-    f"Once upon a time, {caption}. "
-    f"The story is for young children and has a happy ending. "
-)
-    result = story_generator(
+    prompt = f"Once upon a time, {caption}. It was a wonderful day. "
+    result = load_story_generator()(
         prompt,
-        max_new_tokens=200,
+        max_new_tokens=150,
         do_sample=True,
-        temperature=0.8,
-        repetition_penalty=1.3,
+        temperature=0.9,
+        repetition_penalty=1.2,
         num_return_sequences=1
     )
     raw_story = result[0]["generated_text"]
-
-    # 在最后一个句号处截断，确保故事完整结束
     last_period = raw_story.rfind(".")
-    if last_period != -1:
-        story = raw_story[:last_period + 1]
-    else:
-        story = raw_story
-
-    return story
+    return raw_story[:last_period + 1] if last_period != -1 else raw_story
 
 def text2audio(story_text: str) -> str:
     """Convert story text to an MP3 audio file. Returns file path."""
